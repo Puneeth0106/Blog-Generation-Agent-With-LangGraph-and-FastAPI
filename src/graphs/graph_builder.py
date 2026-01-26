@@ -14,9 +14,17 @@ class Graph_builder:
         """
         self.blog_node= blognode(self.llm)
 
+        # self.graph.add_node(START)
         self.graph.add_node("title_creation",self.blog_node.title_creation_node)
         self.graph.add_node("content_generation",self.blog_node.content_generation_node)
+        # self.graph.add_node(END)
 
         self.graph.add_edge(START,"title_creation")
         self.graph.add_edge("title_creation", "content_generation")
         self.graph.add_edge("content_generation", END)
+
+    def router_graph(self,use_case):
+        if use_case=="topic":
+            self.build_topic_graph()
+        return self.graph.compile()
+        
