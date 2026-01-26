@@ -1,5 +1,5 @@
-from typing import TypedDict, Field, Annotated
-from pydantic import BaseModel
+from typing import TypedDict, Annotated
+from pydantic import BaseModel, Field
 
 
 class Blog(BaseModel):
