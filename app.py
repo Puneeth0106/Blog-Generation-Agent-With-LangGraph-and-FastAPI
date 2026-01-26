@@ -7,7 +7,7 @@ load_dotenv()
 
 app= FastAPI()
 
-@app.post("/topic")
+@app.post("/blogs")
 async def create_blog(request:Request):
     data= await request.json()
     topic= data.get("topic", "")
