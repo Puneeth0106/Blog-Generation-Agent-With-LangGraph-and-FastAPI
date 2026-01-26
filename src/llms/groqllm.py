@@ -1,4 +1,4 @@
-from langchain_groq import GroqLLM
+from langchain_groq import ChatGroq
 import os
 from dotenv import load_dotenv
 
@@ -12,13 +12,12 @@ class GroqLLM:
         if not self.groq_api_key:
             raise ValueError("Groq-api-key is not found in Environmental variables")
         try:
-            llm= GroqLLM(model=self.groq_model_name,
+            llm= ChatGroq(model=self.groq_model_name,
                          api_key=self.groq_api_key)
             return llm
         except Exception as e:
             raise ValueError("Error occured due to exception {e}")
             return None
-
 
         
         
