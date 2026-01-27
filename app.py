@@ -1,7 +1,7 @@
 from fastapi import FastAPI, Request
 import uvicorn
 from src.graphs.graph_builder import Graph_builder
-from src.llms.groqllm import GroqLLM
+from src.llms.llm import LLM
 from dotenv import load_dotenv
 load_dotenv()
 
@@ -11,15 +11,18 @@ app= FastAPI()
 async def create_blog(request:Request):
     data= await request.json()
     topic= data.get("topic", "")
+    language= data.get("language","english")
 
-    groqllm= GroqLLM()
-    llm= groqllm.groqllm()
+    llm= LLM().openaillm()
 
     graph_builder= Graph_builder(llm)
 
-    if topic:
+    if topic and language:
+        graph=graph_builder.router_graph(use_case="language")
+        state= graph.invoke({'topic':topic, 'language_content': language})
+    elif topic:
         graph=graph_builder.router_graph(use_case="topic")
-        state= graph.invoke({'topic':topic})
+        state= graph.invoke({'topic': topic})
     return {"data": state}
 
 
