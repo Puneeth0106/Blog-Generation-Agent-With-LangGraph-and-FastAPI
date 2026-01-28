@@ -1,12 +1,16 @@
 from src.states.blogstate import Blogstate
 
+# Defining the blognode class to handle blog generation and translation
 class blognode:
+    # Blog node needs LLM to generate and translate blog content
     def __init__(self,llm):
         self.llm= llm
     
+    # Node to generate blog title: Need graphstate as input
     def title_creation_node(self, state:Blogstate):
         """
         Generates a catchy blog title based on the topic provided in the state.
+        : Takes the topic from the state and uses LLM to generate a title.
         """
         print("Inside title creation node")
         if state['topic'] and "topic" in state:
@@ -21,6 +25,7 @@ class blognode:
 
             return {'blog':{'title': response}}
         
+    # Node to generate blog content: Need graphstate as input
     def content_generation_node(self, state: Blogstate):
         """
         Generates the main content of the blog based on the title and topic provided in the state.
