@@ -1,171 +1,293 @@
-# AI-Powered Blog Generation Agent
+# Blog Agent — AI-Powered Blog Generation System
 
-**Automated Content Creation System** | **Multi-Language Blog Generation with LangGraph & LLM Orchestration**
+**Multi-Language Content Automation** | **LangGraph Orchestration + FastAPI + OpenAI**
 
-> **Description:** Intelligent blog generation system using LangGraph and GPT-4o-mini to automatically create SEO-optimized content in 6 languages with FastAPI REST endpoints.
-
-**Tags:** `artificial-intelligence` `langgraph` `langchain` `fastapi` `content-generation` `multi-language` `gpt-4` `python` `automation` `nlp` `openai` `llm` `api` `blog-generator` `seo`
+[![Python](https://img.shields.io/badge/Python-3.12-3776AB?style=flat&logo=python&logoColor=white)](https://python.org)
+[![FastAPI](https://img.shields.io/badge/FastAPI-0.128-009688?style=flat&logo=fastapi&logoColor=white)](https://fastapi.tiangolo.com)
+[![LangGraph](https://img.shields.io/badge/LangGraph-1.0-FF6B35?style=flat)](https://langchain-ai.github.io/langgraph/)
+[![LangChain](https://img.shields.io/badge/LangChain-1.2-1C3C3C?style=flat)](https://langchain.com)
+[![Deployed on Vercel](https://img.shields.io/badge/Deployed%20on-Vercel-000000?style=flat&logo=vercel&logoColor=white)](https://vercel.com)
+[![License](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 
 ---
 
-An intelligent blog generation agent that leverages state-of-the-art LLMs and LangGraph orchestration to automatically create SEO-optimized blog content in multiple languages. Architected with FastAPI for high-performance API endpoints and designed for scalable content production workflows.
+An end-to-end autonomous content generation system that takes a topic and produces a fully structured, SEO-optimised blog post — translated into any of **6 languages** — through a **4-node LangGraph state machine**, served via a **FastAPI REST API** with a live web frontend deployed on **Vercel**.
+
+**Live Demo →** [blog-agent on Vercel](https://blog-agent-gdo1g8xjf-puneeth0106s-projects.vercel.app/)
 
 ---
 
-## Key Features
+## What It Does — In Numbers
 
--   **Intelligent Blog Generation**: Automatically creates catchy titles and comprehensive blog content (500+ words) using GPT-4o-mini
--   **Multi-Language Translation**: Supports 6 languages (English, Spanish, French, German, Telugu, Swahili) with context-aware translations
--   **Graph-Based Orchestration**: Leveraged LangGraph for sophisticated state management and conditional routing between content generation stages
--   **RESTful API Architecture**: FastAPI-powered endpoints with hot-reload capability for seamless integration
--   **SEO-Optimized Content**: Implements SEO best practices for title and content generation with plagiarism-free output
--   **Modular Design Pattern**: Cleanly separated concerns with dedicated nodes, states, and LLM abstractions for maintainability
--   **Flexible LLM Support**: Configurable support for OpenAI and Groq models with environment-based configuration
+| Metric | Value |
+|---|---|
+| Minimum blog length | **500+ words** per generation |
+| Languages supported | **6** (English, Spanish, French, German, Telugu, Swahili) |
+| LangGraph nodes in pipeline | **4** (title → content → router → translation) |
+| Graph execution modes | **2** (topic-only / language-aware) |
+| API endpoints | **2** (`GET /` frontend, `POST /blogs`) |
+| LLM providers supported | **2** (OpenAI GPT-4o-mini, Groq Llama 3.3-70B) |
+| Lines of application code | **< 250** across the entire `src/` package |
+
+---
+
+## Architecture
+
+### System Data Flow
+
+```
+Client Request  →  POST /blogs  { topic, language? }
+                        │
+                   app.py selects graph mode
+                   based on presence of "language"
+                        │
+            ┌───────────┴────────────┐
+            │                        │
+      Topic Mode               Language Mode
+  (3-node graph)             (4-node graph)
+            │                        │
+            └───────────┬────────────┘
+                        │
+              ┌─────────▼──────────┐
+              │  title_creation    │  LLM generates SEO-optimised
+              │  _node             │  markdown title from topic
+              └─────────┬──────────┘
+                        │
+              ┌─────────▼──────────┐
+              │  content_generation│  LLM writes 500+ word
+              │  _node             │  structured markdown blog
+              └─────────┬──────────┘
+                        │
+              ┌─────────▼──────────┐   (Language Mode only)
+              │  language_router   │  Conditional edge — routes
+              │  _node             │  to correct translation node
+              └──┬──┬──┬──┬──┬───┘   or exits if English
+                 │  │  │  │  │
+              ES FR DE TE SW END
+                 │  │  │  │  │
+              ┌──▼──▼──▼──▼──▼──┐
+              │  translation     │  Translates content preserving
+              │  _node(language) │  tone, structure & markdown
+              └─────────┬────────┘
+                        │
+              ┌─────────▼──────────┐
+              │  JSON Response     │  { data: { topic, blog:
+              │                    │    { title, content } } }
+              └────────────────────┘
+```
+
+### Two Graph Modes
+
+```
+Topic Graph:     START → title_creation → content_generation → END
+
+Language Graph:  START → title_creation → content_generation
+                              → language_router ──┬── spanish_node ──┐
+                                                  ├── french_node   ──┤
+                                                  ├── german_node   ──┤→ END
+                                                  ├── telugu_node   ──┤
+                                                  ├── swahili_node  ──┘
+                                                  └── END (if english)
+```
+
+### Shared State Shape
+
+```python
+Blogstate = {
+    "topic":            str,   # user input
+    "blog":             Blog,  # { title: str, content: str }
+    "language_content": str,   # target language (optional)
+}
+```
+
+State flows immutably through every node — each node receives the full state and returns only the fields it modifies.
+
+---
+
+## Key Engineering Decisions
+
+### 1. LangGraph for Stateful Orchestration
+Rather than chaining LLM calls imperatively, the pipeline is modelled as a **directed acyclic graph**. LangGraph manages state transitions, conditional routing, and execution order. This makes the pipeline easy to extend (adding a new language is 3 lines: new node, new edge, new router branch) and trivial to debug in LangGraph Studio.
+
+### 2. Two Separate Graphs, Not One Fat Graph
+A simpler design would be a single graph with an optional translation branch. Instead, two distinct graphs are compiled at request time based on whether a `language` field is present. This keeps graph complexity low and avoids dead nodes for the majority of requests.
+
+### 3. LLM Abstraction Layer
+The `LLM` class in `src/llms/llm.py` exposes `openaillm()` and `groqllm()` factory methods. Swapping the underlying model requires **zero changes** to any node or graph — only the factory call in `app.py` changes.
+
+### 4. Pydantic State Validation
+The `Blog` model is a Pydantic `BaseModel`. Every node that writes to `blog` produces a validated, type-safe object. Invalid LLM outputs fail fast at the state boundary rather than causing silent downstream errors.
 
 ---
 
 ## Tech Stack
 
-### **Languages**
+### AI / ML
+| Library | Version | Role |
+|---|---|---|
+| LangGraph | 1.0.7 | State machine graph orchestration |
+| LangChain | 1.2.7 | LLM interface & prompt management |
+| OpenAI GPT-4o-mini | — | Primary content generation model |
+| Groq Llama 3.3-70B | — | Alternative LLM provider |
+| LangSmith | 0.6.4 | Tracing & observability (optional) |
 
-![Python](https://img.shields.io/badge/Python-3.11+-3776AB?style=flat&logo=python&logoColor=white)
+### Backend
+| Library | Version | Role |
+|---|---|---|
+| FastAPI | 0.128 | Async REST API framework |
+| Pydantic | 2.12 | Data validation & state typing |
+| Uvicorn | 0.40 | ASGI server |
+| python-dotenv | 1.2 | Environment configuration |
 
-### **AI Frameworks & LLMs**
-
--   **LangChain** (v0.3.25) - LLM application framework
--   **LangGraph** (v0.4.8) - State machine orchestration for multi-step workflows
--   **OpenAI GPT-4o-mini** - Primary content generation model
--   **ChatGroq** (Llama 3.3 70B) - Alternative LLM provider support
-
-### **Web Framework**
-
--   **FastAPI** (v0.115+) - High-performance async API framework
--   **Uvicorn** - ASGI server with auto-reload
-
-### **Development Tools**
-
--   **Pydantic** - Data validation and settings management
--   **python-dotenv** - Environment variable management
--   **LangGraph CLI** - Development and debugging tooling
-
----
-
-## Architecture & System Design
-
-### **High-Level Data Flow**
-
-```
-┌─────────────────┐│   API Request   │ (Topic + Optional Language)│   (FastAPI)     │└────────┬────────┘         │         ▼┌─────────────────────────────────────────┐│       Graph Builder (LangGraph)         ││  ┌─────────────────────────────────┐   ││  │  Router Logic                    │   ││  │  (Topic-only vs Language Mode)   │   ││  └──────────┬──────────────────────┘   ││             │                            ││             ▼                            ││  ┌──────────────────────┐               ││  │  Title Creation Node │               ││  │  (SEO-Optimized)     │               ││  └──────────┬───────────┘               ││             │                            ││             ▼                            ││  ┌──────────────────────┐               ││  │ Content Generation   │               ││  │ Node (500+ words)    │               ││  └──────────┬───────────┘               ││             │                            ││             ▼                            ││  ┌──────────────────────┐               ││  │  Language Router     │◄──(if language specified)│  │  (Conditional Logic) │               ││  └──────────┬───────────┘               ││             │                            ││    ┌────────┴────────┐                  ││    ▼                 ▼                  ││  [Translation Nodes (5 languages)]      ││    │                 │                  ││    └────────┬────────┘                  ││             │                            │└─────────────┼────────────────────────────┘              │              ▼      ┌───────────────┐      │ JSON Response │ (Title + Content)      └───────────────┘
-```
-
-### **Core Components**
-
-1.  **State Management** (`Blogstate`): TypedDict-based state container tracking topic, generated blog, and language preferences
-2.  **Graph Builder**: Dynamically constructs execution graphs with conditional routing based on use case
-3.  **Blog Nodes**: Specialized processing units for title creation, content generation, and translation
-4.  **LLM Abstraction Layer**: Unified interface supporting multiple LLM providers (OpenAI, Groq)
-
----
-
-## Installation & Setup
-
-### **Prerequisites**
-
--   Python 3.11 or higher
--   OpenAI API Key (or Groq API Key)
-
-### **1. Clone the Repository**
-
-```bash
-git clone https://github.com/yourusername/Blog-Agent.gitcd Blog-Agent
-```
-
-### **2. Create Virtual Environment**
-
-```bash
-python3 -m venv venvsource venv/bin/activate  # On Windows: venvScriptsactivate
-```
-
-### **3. Install Dependencies**
-
-```bash
-pip install -e .
-```
-
-### **4. Configure Environment Variables**
-
-Create a `.env` file in the project root:
-
-```bash
-# OpenAI ConfigurationOPENAI_API_KEY=your_openai_api_key_here# Optional: Groq ConfigurationGROQ_API_KEY=your_groq_api_key_hereGROQ_MODEL=llama-3.3-70b-versatile
-```
-
-### **5. Run the Application**
-
-```bash
-python3 app.py
-```
-
-The API will be available at `http://localhost:8000`
-
----
-
-## Usage Examples
-
-### **Generate Blog (English Only)**
-
-```bash
-curl -X POST http://localhost:8000/blogs   -H "Content-Type: application/json"   -d '{    "topic": "The Future of Artificial Intelligence"  }'
-```
-
-### **Generate Blog with Translation**
-
-```bash
-curl -X POST http://localhost:8000/blogs   -H "Content-Type: application/json"   -d '{    "topic": "Sustainable Energy Solutions",    "language": "spanish"  }'
-```
-
-**Supported Languages**: `english`, `spanish`, `french`, `german`, `telugu`, `swahili`
-
----
-
-## Key Achievements
-
--   **Automated Multi-Step Workflow**: Orchestrated a 3-stage content generation pipeline reducing manual effort by 100%
--   **Scalable Graph Architecture**: Implemented conditional routing with LangGraph, enabling dynamic execution paths based on user input
--   **Multi-LLM Support**: Architected flexible LLM abstraction supporting both OpenAI and Groq providers with zero code changes
--   **Production-Ready API**: Deployed FastAPI endpoints with async support and hot-reload capability for rapid iteration
--   **Context-Aware Translation**: Engineered translation nodes that preserve tone and cultural nuances across 5 languages
--   **Type-Safe State Management**: Leveraged Pydantic models ensuring data integrity throughout the execution graph
+### Frontend & Deployment
+| Tool | Role |
+|---|---|
+| Vanilla JS + Tailwind CSS | Responsive single-page frontend |
+| Marked.js | Markdown → HTML rendering |
+| highlight.js | Code block syntax highlighting |
+| Vercel | Serverless deployment (Python 3.12 runtime) |
 
 ---
 
 ## Project Structure
 
 ```
-Blog-Agent/├── app.py                      # FastAPI application entry point├── main.py                     # CLI entry point├── pyproject.toml              # Project dependencies and metadata├── langgraph.json             # LangGraph configuration├── .env                        # Environment variables (not in repo)└── src/    ├── graphs/    │   └── graph_builder.py   # Graph orchestration logic    ├── llms/    │   └── llm.py             # LLM provider abstractions    ├── nodes/    │   └── blog_node.py       # Content generation nodes    └── states/        └── blogstate.py       # State type definitions
+Blog-Agent/
+├── app.py                      # FastAPI entrypoint — graph selection, route handlers
+├── frontend/
+│   └── index.html              # Single-page frontend (Tailwind + Marked.js)
+├── src/
+│   ├── graphs/
+│   │   └── graph_builder.py    # Graph_builder class — compiles both graph modes
+│   ├── llms/
+│   │   └── llm.py              # LLM factory — OpenAI & Groq providers
+│   ├── nodes/
+│   │   └── blog_node.py        # All 4 node functions + 5 translation nodes
+│   └── states/
+│       └── blogstate.py        # Blogstate TypedDict + Blog Pydantic model
+├── langgraph.json              # LangGraph Studio config → points at graph_builder:graph
+├── pyproject.toml              # Dependencies (uv lockfile)
+├── vercel.json                 # Vercel build config
+└── .python-version             # Pins Python 3.12 for Vercel runtime
 ```
 
 ---
 
-## Future Enhancements
+## Local Setup
 
--    Add support for custom content length parameters
--    Implement caching layer for repeated topics
--    Integrate vector database for RAG-based content enrichment
--    Add streaming responses for real-time content generation
--    Implement A/B testing for multiple title/content variants
--    Deploy with container orchestration (Docker + Kubernetes)
+### Prerequisites
+- Python 3.12+
+- OpenAI API key (or Groq API key)
+
+### 1. Clone & install
+
+```bash
+git clone https://github.com/Puneeth0106/Blog-Agent.git
+cd Blog-Agent
+pip install -e .
+```
+
+### 2. Configure environment
+
+```bash
+# .env
+OPENAI_API_KEY=your_key_here
+OPENAI_MODEL=gpt-4o-mini
+
+# Optional — Groq alternative
+GROQ_API_KEY=your_key_here
+GROQ_MODEL=llama-3.3-70b-versatile
+
+# Optional — LangSmith tracing
+LANGCHAIN_API_KEY=your_key_here
+LANGCHAIN_PROJECT=blog-agent
+LANGCHAIN_TRACING_V2=true
+```
+
+### 3. Start the server
+
+```bash
+python3 app.py
+# → http://localhost:8000
+```
+
+### 4. (Optional) LangGraph Studio
+
+```bash
+langgraph up
+# Visual graph debugger at http://localhost:8123
+```
+
+---
+
+## API Reference
+
+### `POST /blogs`
+
+Generate a blog post from a topic, with optional translation.
+
+**Request body**
+
+```json
+{ "topic": "The Future of Quantum Computing", "language": "spanish" }
+```
+
+`language` is optional. Omit it for English output. Supported values: `english`, `spanish`, `french`, `german`, `telugu`, `swahili`.
+
+**Response**
+
+```json
+{
+  "data": {
+    "topic": "The Future of Quantum Computing",
+    "blog": {
+      "title": "# El Futuro de la Computación Cuántica",
+      "content": "## Introducción\n\nLa computación cuántica..."
+    },
+    "language_content": "spanish"
+  }
+}
+```
+
+**Examples**
+
+```bash
+# English
+curl -X POST http://localhost:8000/blogs \
+  -H "Content-Type: application/json" \
+  -d '{"topic": "The Future of Quantum Computing"}'
+
+# Spanish
+curl -X POST http://localhost:8000/blogs \
+  -H "Content-Type: application/json" \
+  -d '{"topic": "The Future of Quantum Computing", "language": "spanish"}'
+```
+
+---
+
+## Adding a New Language
+
+3 steps, ~10 lines of code:
+
+1. **`src/nodes/blog_node.py`** — add a translation node method following the existing pattern
+2. **`src/graphs/graph_builder.py`** — register the node and its edge in `build_language_graph()`
+3. **`src/nodes/blog_node.py`** — add a routing branch in `language_router_node()`
+
+---
+
+## Highlights for Reviewers
+
+- **Agentic pipeline design** — multi-step LLM workflow with stateful graph orchestration, not a single prompt call
+- **Conditional graph routing** — dynamic execution paths determined at runtime based on input, not hardcoded branches
+- **Dual-provider LLM abstraction** — production-ready pattern for model-agnostic AI systems
+- **Type-safe state machine** — Pydantic validation at every state boundary prevents silent failures
+- **Full-stack deployment** — Python serverless backend + static frontend, both served from a single Vercel project
+- **Extensible by design** — new language in 3 files, new LLM provider in 1 file, new node in 2 files
 
 ---
 
 ## Contact
 
-**Portfolio**: [Your Portfolio URL]  
-**LinkedIn**: [Your LinkedIn Profile]  
+**GitHub**: [Puneeth0106](https://github.com/Puneeth0106)
+**LinkedIn**: [Your LinkedIn Profile]
 **Email**: [Your Email]
-
----
-
-**Star this repo if you find it useful!**
-
-![License](https://img.shields.io/badge/License-MIT-blue.svg)![Python Version](https://img.shields.io/badge/Python-3.11%2B-brightgreen)![LangGraph](https://img.shields.io/badge/LangGraph-0.4.8-orange)
