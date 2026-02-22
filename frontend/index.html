@@ -1,0 +1,483 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Blog Agent — AI Blog Generator</title>
+
+  <!-- Tailwind CSS -->
+  <script src="https://cdn.tailwindcss.com"></script>
+
+  <!-- Marked.js — Markdown → HTML -->
+  <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+
+  <!-- highlight.js — code block syntax highlighting inside blog content -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/github.min.css" />
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
+
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            brand: {
+              50:  '#f0f9ff',
+              100: '#e0f2fe',
+              500: '#0ea5e9',
+              600: '#0284c7',
+              700: '#0369a1',
+            },
+          },
+          animation: {
+            'pulse-slow': 'pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite',
+            'fade-in':    'fadeIn 0.4s ease-out',
+            'slide-up':   'slideUp 0.5s ease-out',
+          },
+          keyframes: {
+            fadeIn:  { '0%': { opacity: '0' },                        '100%': { opacity: '1' } },
+            slideUp: { '0%': { opacity: '0', transform: 'translateY(24px)' }, '100%': { opacity: '1', transform: 'translateY(0)' } },
+          },
+        },
+      },
+    };
+  </script>
+
+  <style>
+    /* ── Scrollbar ── */
+    ::-webkit-scrollbar { width: 6px; }
+    ::-webkit-scrollbar-track { background: #f1f5f9; }
+    ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 3px; }
+
+    /* ── Markdown prose ── */
+    .prose h1 { font-size: 1.875rem; font-weight: 700; margin: 1.25rem 0 .75rem; color: #0f172a; line-height:1.25; }
+    .prose h2 { font-size: 1.375rem; font-weight: 700; margin: 1.25rem 0 .5rem;  color: #1e293b; border-bottom: 2px solid #e2e8f0; padding-bottom: .35rem; }
+    .prose h3 { font-size: 1.15rem;  font-weight: 600; margin: 1rem 0 .4rem;    color: #334155; }
+    .prose p  { margin: .75rem 0; line-height: 1.8; color: #374151; }
+    .prose ul { list-style: disc;    padding-left: 1.5rem; margin: .6rem 0; color: #374151; }
+    .prose ol { list-style: decimal; padding-left: 1.5rem; margin: .6rem 0; color: #374151; }
+    .prose li { margin: .3rem 0; line-height: 1.7; }
+    .prose strong { font-weight: 700; color: #1e293b; }
+    .prose em     { font-style: italic; }
+    .prose blockquote { border-left: 4px solid #0ea5e9; padding-left: 1rem; margin: 1rem 0; color: #64748b; font-style: italic; background: #f0f9ff; border-radius: 0 8px 8px 0; padding: .75rem 1rem; }
+    .prose code   { background: #f1f5f9; padding: .15rem .4rem; border-radius: 4px; font-family: monospace; font-size: .875rem; color: #0369a1; }
+    .prose pre    { background: #1e293b; border-radius: 10px; padding: 1rem; overflow-x: auto; margin: 1rem 0; }
+    .prose pre code { background: transparent; color: #e2e8f0; padding: 0; }
+    .prose a      { color: #0284c7; text-decoration: underline; }
+    .prose hr     { border-color: #e2e8f0; margin: 1.5rem 0; }
+
+    /* ── Spinner ── */
+    @keyframes spin { to { transform: rotate(360deg); } }
+    .spinner { animation: spin 0.9s linear infinite; }
+
+    /* ── Dot bounce ── */
+    @keyframes bounce { 0%,80%,100% { transform: scale(0); } 40% { transform: scale(1); } }
+    .dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; background:#0ea5e9; animation: bounce 1.4s infinite ease-in-out both; }
+    .dot:nth-child(1) { animation-delay: -0.32s; }
+    .dot:nth-child(2) { animation-delay: -0.16s; }
+
+    /* ── Gradient text ── */
+    .gradient-text { background: linear-gradient(135deg, #0ea5e9, #6366f1); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text; }
+
+    /* ── Card hover ── */
+    .lang-card:hover { transform: translateY(-1px); }
+    .lang-card.active { border-color: #0ea5e9 !important; background: #f0f9ff !important; }
+    .lang-card.active span { color: #0369a1 !important; font-weight: 600; }
+  </style>
+</head>
+
+<body class="min-h-screen bg-gradient-to-br from-slate-50 via-sky-50 to-indigo-50 font-sans">
+
+  <!-- ═══════════════════════════  HEADER  ═══════════════════════════ -->
+  <header class="sticky top-0 z-50 backdrop-blur-md bg-white/80 border-b border-slate-200 shadow-sm">
+    <div class="max-w-5xl mx-auto px-4 py-4 flex items-center justify-between">
+      <div class="flex items-center gap-3">
+        <!-- logo icon -->
+        <div class="w-9 h-9 rounded-xl bg-gradient-to-br from-sky-500 to-indigo-600 flex items-center justify-center shadow">
+          <svg class="w-5 h-5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M12 20h9M16.5 3.5a2.121 2.121 0 013 3L7 19l-4 1 1-4L16.5 3.5z"/>
+          </svg>
+        </div>
+        <div>
+          <h1 class="text-lg font-bold text-slate-800 leading-tight">Blog Agent</h1>
+          <p class="text-xs text-slate-400 leading-none">AI-Powered Blog Generator</p>
+        </div>
+      </div>
+      <!-- status badge -->
+      <div id="statusBadge" class="flex items-center gap-2 text-xs font-medium text-slate-500 bg-slate-100 px-3 py-1.5 rounded-full">
+        <span class="w-2 h-2 rounded-full bg-slate-300"></span>
+        <span>Ready</span>
+      </div>
+    </div>
+  </header>
+
+  <!-- ═══════════════════════════  MAIN  ════════════════════════════ -->
+  <main class="max-w-5xl mx-auto px-4 py-10 space-y-8">
+
+    <!-- Hero copy -->
+    <div class="text-center space-y-2">
+      <h2 class="text-3xl sm:text-4xl font-extrabold gradient-text">Generate SEO-Optimised Blogs</h2>
+      <p class="text-slate-500 text-sm sm:text-base max-w-lg mx-auto">
+        Powered by LangGraph &amp; OpenAI. Enter any topic, pick a language, and get a 500+ word blog in seconds.
+      </p>
+    </div>
+
+    <!-- ─────────── INPUT CARD ─────────── -->
+    <section class="bg-white rounded-2xl shadow-sm border border-slate-200 p-6 sm:p-8 space-y-6">
+
+      <!-- Topic -->
+      <div class="space-y-2">
+        <label for="topicInput" class="block text-sm font-semibold text-slate-700">
+          Blog Topic <span class="text-red-400">*</span>
+        </label>
+        <textarea
+          id="topicInput"
+          rows="3"
+          placeholder="e.g. The Future of Quantum Computing in Healthcare"
+          class="w-full resize-none rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-slate-800 text-sm
+                 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-sky-400 focus:border-transparent
+                 transition-all duration-200"
+        ></textarea>
+        <div class="flex justify-between items-center">
+          <p class="text-xs text-slate-400">Be specific for better results</p>
+          <span id="charCount" class="text-xs text-slate-400">0 / 300</span>
+        </div>
+      </div>
+
+      <!-- Language -->
+      <div class="space-y-2">
+        <label class="block text-sm font-semibold text-slate-700">Output Language</label>
+        <div id="langGrid" class="grid grid-cols-3 sm:grid-cols-6 gap-2">
+          <!-- populated by JS -->
+        </div>
+      </div>
+
+      <!-- Submit -->
+      <button
+        id="generateBtn"
+        onclick="generateBlog()"
+        class="w-full py-3 px-6 rounded-xl font-semibold text-white text-sm
+               bg-gradient-to-r from-sky-500 to-indigo-500
+               hover:from-sky-600 hover:to-indigo-600
+               active:scale-95 transition-all duration-200
+               disabled:opacity-60 disabled:cursor-not-allowed disabled:scale-100
+               shadow-md hover:shadow-lg flex items-center justify-center gap-2"
+      >
+        <svg id="btnIcon" class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M13 10V3L4 14h7v7l9-11h-7z"/>
+        </svg>
+        <span id="btnText">Generate Blog</span>
+      </button>
+    </section>
+
+    <!-- ─────────── LOADING ─────────── -->
+    <section id="loadingSection" class="hidden">
+      <div class="bg-white rounded-2xl border border-slate-200 shadow-sm p-8 text-center space-y-4">
+        <!-- skeleton lines -->
+        <div class="space-y-3 animate-pulse">
+          <div class="h-6 bg-slate-200 rounded-lg w-2/3 mx-auto"></div>
+          <div class="h-4 bg-slate-100 rounded w-full"></div>
+          <div class="h-4 bg-slate-100 rounded w-5/6"></div>
+          <div class="h-4 bg-slate-100 rounded w-full"></div>
+          <div class="h-4 bg-slate-100 rounded w-4/5"></div>
+          <div class="h-4 bg-slate-100 rounded w-full"></div>
+          <div class="h-4 bg-slate-100 rounded w-3/4"></div>
+        </div>
+        <div class="flex items-center justify-center gap-2 pt-2">
+          <div class="dot"></div><div class="dot"></div><div class="dot"></div>
+          <span class="text-sm text-slate-500 ml-1" id="loadingMsg">Generating your blog…</span>
+        </div>
+      </div>
+    </section>
+
+    <!-- ─────────── ERROR ─────────── -->
+    <section id="errorSection" class="hidden animate-fade-in">
+      <div class="bg-red-50 border border-red-200 rounded-2xl p-6 flex gap-4 items-start">
+        <div class="w-8 h-8 rounded-full bg-red-100 flex items-center justify-center flex-shrink-0 mt-0.5">
+          <svg class="w-4 h-4 text-red-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"/>
+          </svg>
+        </div>
+        <div class="flex-1">
+          <h3 class="font-semibold text-red-700 text-sm">Something went wrong</h3>
+          <p id="errorMsg" class="text-red-600 text-sm mt-1"></p>
+          <p class="text-xs text-red-400 mt-2">Make sure the FastAPI server is running on <code class="bg-red-100 px-1 rounded">http://localhost:8000</code></p>
+        </div>
+      </div>
+    </section>
+
+    <!-- ─────────── RESULT ─────────── -->
+    <section id="resultSection" class="hidden animate-slide-up space-y-4">
+
+      <!-- meta bar -->
+      <div class="flex flex-wrap items-center justify-between gap-3">
+        <div class="flex items-center gap-2">
+          <span class="w-2 h-2 rounded-full bg-emerald-400"></span>
+          <span class="text-sm font-medium text-slate-600">Blog generated</span>
+          <span id="resultLangBadge" class="text-xs bg-sky-100 text-sky-700 px-2.5 py-0.5 rounded-full font-medium hidden"></span>
+        </div>
+        <div class="flex gap-2">
+          <span id="wordCountBadge" class="text-xs text-slate-500 bg-slate-100 px-2.5 py-1 rounded-full"></span>
+          <button
+            onclick="copyToClipboard()"
+            id="copyBtn"
+            class="flex items-center gap-1.5 text-xs font-medium text-slate-600 bg-slate-100 hover:bg-slate-200 px-3 py-1.5 rounded-full transition-colors"
+          >
+            <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"/>
+            </svg>
+            <span id="copyBtnText">Copy Markdown</span>
+          </button>
+        </div>
+      </div>
+
+      <!-- blog card -->
+      <div class="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+        <!-- top accent -->
+        <div class="h-1 bg-gradient-to-r from-sky-400 via-indigo-400 to-purple-400"></div>
+        <div class="p-6 sm:p-10">
+          <div id="blogOutput" class="prose max-w-none text-slate-700"></div>
+        </div>
+      </div>
+
+      <!-- raw markdown toggle -->
+      <details class="bg-slate-800 rounded-2xl overflow-hidden text-sm">
+        <summary class="px-5 py-3 text-slate-400 cursor-pointer select-none hover:text-slate-200 transition-colors font-mono text-xs flex items-center gap-2">
+          <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4"/>
+          </svg>
+          View raw Markdown
+        </summary>
+        <pre id="rawMarkdown" class="p-5 text-slate-300 overflow-x-auto whitespace-pre-wrap text-xs leading-relaxed font-mono"></pre>
+      </details>
+
+    </section>
+
+  </main>
+
+  <!-- ═══════════════════════════  FOOTER  ═══════════════════════════ -->
+  <footer class="text-center py-8 text-xs text-slate-400 space-y-1">
+    <p>Blog Agent · LangGraph + FastAPI backend · <span id="footerYear"></span></p>
+    <p>Server expected at <code class="bg-slate-100 px-1 rounded text-slate-500">http://localhost:8000</code></p>
+  </footer>
+
+  <!-- ═══════════════════════════  SCRIPT  ═══════════════════════════ -->
+  <script>
+    /* ── CONFIG ── */
+    const API_BASE = 'http://localhost:8000';
+    const LANGUAGES = [
+      { code: 'english',  label: 'English',  flag: '🇬🇧' },
+      { code: 'spanish',  label: 'Spanish',  flag: '🇪🇸' },
+      { code: 'french',   label: 'French',   flag: '🇫🇷' },
+      { code: 'german',   label: 'German',   flag: '🇩🇪' },
+      { code: 'telugu',   label: 'Telugu',   flag: '🇮🇳' },
+      { code: 'swahili',  label: 'Swahili',  flag: '🌍' },
+    ];
+
+    /* ── STATE ── */
+    let selectedLang  = 'english';
+    let rawMarkdownContent = '';
+
+    /* ── INIT ── */
+    document.getElementById('footerYear').textContent = new Date().getFullYear();
+
+    // Configure marked
+    marked.setOptions({
+      highlight: (code, lang) => {
+        if (lang && hljs.getLanguage(lang)) {
+          return hljs.highlight(code, { language: lang }).value;
+        }
+        return hljs.highlightAuto(code).value;
+      },
+      breaks: true,
+      gfm: true,
+    });
+
+    // Build language grid
+    const langGrid = document.getElementById('langGrid');
+    LANGUAGES.forEach(lang => {
+      const card = document.createElement('button');
+      card.className = `lang-card flex flex-col items-center justify-center gap-1 py-2 px-1 rounded-xl border-2 border-slate-200
+                        bg-slate-50 cursor-pointer transition-all duration-150 text-center`;
+      card.dataset.code = lang.code;
+      card.innerHTML = `<span class="text-xl">${lang.flag}</span><span class="text-xs text-slate-600">${lang.label}</span>`;
+      card.onclick = () => selectLanguage(lang.code);
+      langGrid.appendChild(card);
+    });
+    selectLanguage('english'); // default
+
+    // Character counter
+    const topicInput = document.getElementById('topicInput');
+    topicInput.addEventListener('input', () => {
+      const len = topicInput.value.length;
+      document.getElementById('charCount').textContent = `${len} / 300`;
+      if (len > 300) topicInput.value = topicInput.value.slice(0, 300);
+    });
+
+    /* ── HELPERS ── */
+    function selectLanguage(code) {
+      selectedLang = code;
+      document.querySelectorAll('.lang-card').forEach(card => {
+        const isActive = card.dataset.code === code;
+        card.classList.toggle('active', isActive);
+        card.style.borderColor = isActive ? '#0ea5e9' : '';
+        card.style.background  = isActive ? '#f0f9ff' : '';
+      });
+    }
+
+    function setStatus(state) {
+      const badge = document.getElementById('statusBadge');
+      const states = {
+        ready:    { dot: 'bg-slate-300',  text: 'Ready',       cls: 'text-slate-500 bg-slate-100' },
+        loading:  { dot: 'bg-amber-400',  text: 'Generating…', cls: 'text-amber-600 bg-amber-50'  },
+        success:  { dot: 'bg-emerald-400',text: 'Done',        cls: 'text-emerald-600 bg-emerald-50' },
+        error:    { dot: 'bg-red-400',    text: 'Error',       cls: 'text-red-500 bg-red-50'      },
+      };
+      const s = states[state] || states.ready;
+      badge.className = `flex items-center gap-2 text-xs font-medium px-3 py-1.5 rounded-full ${s.cls}`;
+      badge.innerHTML = `<span class="w-2 h-2 rounded-full ${s.dot}"></span><span>${s.text}</span>`;
+    }
+
+    function showSection(id) {
+      ['loadingSection','errorSection','resultSection'].forEach(sec => {
+        const el = document.getElementById(sec);
+        if (sec === id) { el.classList.remove('hidden'); }
+        else            { el.classList.add('hidden'); }
+      });
+    }
+
+    function setLoading(on) {
+      const btn  = document.getElementById('generateBtn');
+      const icon = document.getElementById('btnIcon');
+      const text = document.getElementById('btnText');
+      btn.disabled = on;
+      if (on) {
+        icon.innerHTML = `<circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" fill="none"></circle>
+                          <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"></path>`;
+        icon.classList.add('spinner');
+        text.textContent = 'Generating…';
+      } else {
+        icon.classList.remove('spinner');
+        icon.innerHTML = `<path stroke-linecap="round" stroke-linejoin="round" d="M13 10V3L4 14h7v7l9-11h-7z"/>`;
+        text.textContent = 'Generate Blog';
+      }
+    }
+
+    function countWords(text) {
+      return text.trim().split(/\s+/).filter(Boolean).length;
+    }
+
+    /* ── MAIN ACTION ── */
+    async function generateBlog() {
+      const topic = topicInput.value.trim();
+      if (!topic) {
+        topicInput.focus();
+        topicInput.classList.add('ring-2','ring-red-400','border-red-300');
+        setTimeout(() => topicInput.classList.remove('ring-2','ring-red-400','border-red-300'), 1800);
+        return;
+      }
+
+      setLoading(true);
+      setStatus('loading');
+      showSection('loadingSection');
+
+      // Animate loading messages
+      const messages = [
+        'Crafting SEO-optimised title…',
+        'Writing blog content (500+ words)…',
+        selectedLang !== 'english' ? `Translating to ${selectedLang.charAt(0).toUpperCase()+selectedLang.slice(1)}…` : 'Polishing the content…',
+        'Almost there…',
+      ];
+      let msgIdx = 0;
+      const msgEl = document.getElementById('loadingMsg');
+      const msgInterval = setInterval(() => {
+        msgIdx = (msgIdx + 1) % messages.length;
+        msgEl.textContent = messages[msgIdx];
+      }, 2200);
+
+      try {
+        const payload = { topic };
+        if (selectedLang !== 'english') payload.language = selectedLang;
+
+        const res = await fetch(`${API_BASE}/blogs`, {
+          method:  'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body:    JSON.stringify(payload),
+        });
+
+        if (!res.ok) {
+          let errMsg = `Server returned ${res.status}`;
+          try { const j = await res.json(); errMsg = j.detail || j.message || errMsg; } catch {}
+          throw new Error(errMsg);
+        }
+
+        const json = await res.json();
+        const blog = json?.data?.blog;
+        if (!blog?.content) throw new Error('Unexpected response format from server.');
+
+        renderBlog(blog, selectedLang);
+        setStatus('success');
+        showSection('resultSection');
+
+      } catch (err) {
+        document.getElementById('errorMsg').textContent = err.message;
+        setStatus('error');
+        showSection('errorSection');
+      } finally {
+        clearInterval(msgInterval);
+        setLoading(false);
+      }
+    }
+
+    function renderBlog(blog, lang) {
+      // Combine title + content into one markdown string
+      const titleMd   = blog.title.startsWith('#') ? blog.title : `# ${blog.title}`;
+      const fullMd    = `${titleMd}\n\n${blog.content}`;
+      rawMarkdownContent = fullMd;
+
+      // Render markdown
+      document.getElementById('blogOutput').innerHTML = marked.parse(fullMd);
+
+      // Apply highlight.js to code blocks
+      document.querySelectorAll('#blogOutput pre code').forEach(el => hljs.highlightElement(el));
+
+      // Raw markdown
+      document.getElementById('rawMarkdown').textContent = fullMd;
+
+      // Word count
+      const words = countWords(blog.content);
+      document.getElementById('wordCountBadge').textContent = `~${words.toLocaleString()} words`;
+
+      // Language badge
+      const langBadge = document.getElementById('resultLangBadge');
+      if (lang !== 'english') {
+        langBadge.textContent = LANGUAGES.find(l => l.code === lang)?.flag + ' ' + lang.charAt(0).toUpperCase() + lang.slice(1);
+        langBadge.classList.remove('hidden');
+      } else {
+        langBadge.classList.add('hidden');
+      }
+    }
+
+    async function copyToClipboard() {
+      try {
+        await navigator.clipboard.writeText(rawMarkdownContent);
+        const btn = document.getElementById('copyBtnText');
+        btn.textContent = 'Copied!';
+        setTimeout(() => { btn.textContent = 'Copy Markdown'; }, 2000);
+      } catch {
+        // fallback
+        const ta = document.createElement('textarea');
+        ta.value = rawMarkdownContent;
+        document.body.appendChild(ta);
+        ta.select();
+        document.execCommand('copy');
+        document.body.removeChild(ta);
+      }
+    }
+
+    // Allow Ctrl/Cmd + Enter to submit
+    topicInput.addEventListener('keydown', e => {
+      if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') generateBlog();
+    });
+  </script>
+</body>
+</html>

@@ -1,6 +1,7 @@
 # FastAPI application to create blog posts based on topic and language
 
 from fastapi import FastAPI, Request
+from starlette.middleware.cors import CORSMiddleware
 import uvicorn
 from src.graphs.graph_builder import Graph_builder
 from src.llms.llm import LLM
@@ -8,6 +9,14 @@ from dotenv import load_dotenv
 load_dotenv()
 
 app= FastAPI()
+
+# Allow the local frontend (file:// or any dev server) to call the API
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],   # tighten to specific origin in production
+    allow_methods=["POST"],
+    allow_headers=["Content-Type"],
+)
 
 # API endpoint to create blog based on topic and language
 @app.post("/blogs")
