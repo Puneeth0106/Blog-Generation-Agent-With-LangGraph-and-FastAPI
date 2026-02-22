@@ -289,5 +289,5 @@ curl -X POST http://localhost:8000/blogs \
 ## Contact
 
 **GitHub**: [Puneeth0106](https://github.com/Puneeth0106)
-**LinkedIn**: [Your LinkedIn Profile]
-**Email**: [Your Email]
+**LinkedIn**: [LinkedIn Profile](https://www.linkedin.com/in/puneeth-kumar-amudala-4bb7a4245/)
+**Email**: [puneethkumaramudala7@gmail.com](puneethkumaramudala7@gmail.com)
